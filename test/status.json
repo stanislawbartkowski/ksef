@@ -1,0 +1,14 @@
+{
+    "exception": {
+        "serviceCtx": "srvTEMFA",
+        "serviceCode": "20230924-EX-FE07F1DFCB-D143ED5715-0F",
+        "serviceName": "online.session.session.status.plain",
+        "timestamp": "2023-09-24T19:28:11.467Z",
+        "exceptionDetailList": [
+            {
+                "exceptionCode": 21170,
+                "exceptionDescription": "Sesja interaktywna wygasła."
+            }
+        ]
+    }
+}

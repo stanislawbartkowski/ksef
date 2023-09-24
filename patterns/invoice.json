@@ -1,0 +1,13 @@
+{
+    "invoiceHash": {
+        "hashSHA": {
+            "algorithm": "SHA-256",
+            "encoding": "Base64",
+            "value": "__HASH__"
+        }
+    },
+    "invoicePayload": {
+        "type": "plain",
+        "invoiceBody": "__INVOICE__"
+    }
+}

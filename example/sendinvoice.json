@@ -1,0 +1,14 @@
+{
+    "invoiceHash": {
+        "hashSHA": {
+            "algorithm": "SHA-256",
+            "encoding": "Base64",
+            "value": "cilI8CyvMEWzHsGwtZsc+/hUaT2qPxCsXjGgbwcph/M="
+        },
+        "fileSize": 6824
+    },
+    "invoicePayload": {
+        "type": "plain",
+        "invoiceBody": "="
+    }
+}
