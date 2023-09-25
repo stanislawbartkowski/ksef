@@ -80,11 +80,16 @@ checkstatus() {
     logfail "$3"
 }
 
+
+# create payload for invoice/send
+# $1 - < invoice XML
+# $2 - > invoice/send json
 createinvoicesend() {
     local -r PATTERN=patterns/invoice.json
     local -r FILESIZE=`cat $1 | wc -c`
     local -r BODY=`cat $1 | base64 -w 0`
-    local -r HASH=`sha256sum $1 | cut -d " " -f 1 | base64 -w 0`
+    local -r HASH=`md5sum $1 | cut -d " " -f 1 | base64 -w 0`
+    #local -r HASH=`sha256sum $1 | cut -d " " -f 1 | base64 -w 0`
 
     local -r CMD="sed \"s#__HASH__#$HASH#\" $PATTERN"
     local -r CMD1="sed \"s#__INVOICE__#$BODY#\""
@@ -161,21 +166,30 @@ requestsessionterminate() {
 }
 
 # api/online/Invoice/Send
-# $1 - result of the InitToken file, sessiontoken.json
-# $2 - invoice XML
-# $3 - result
-requestinvoicesend() {
+# $1 - < result of the InitToken file, sessiontoken.json
+# $2 - > request invoice/send 
+directrequestinvoicesend() {
     log "Sending invoice"
     local -r SESSIONTOKEN=`getsessiontoken $1`
-    [[ ! -z "$SESSIONTOKEN" ]] || logfail "Cannot extract session token"
-    createinvoicesend $2 $3
     OUT=work/invoicestatus.json
+    [[ ! -z "$SESSIONTOKEN" ]] || logfail "Cannot extract session token"
     # Important: PUT
-    curl -X PUT $PREFIXURL/api/online/Invoice/Send -v  -H "Content-Type: application/json" -H "accept: application/json" -H "SessionToken: $SESSIONTOKEN" -d@$3 -o $OUT >$CURLOUT 2>&1
+    curl -X PUT $PREFIXURL/api/online/Invoice/Send -v  -H "Content-Type: application/json" -H "accept: application/json" -H "SessionToken: $SESSIONTOKEN" -d@$2 -o $OUT >$CURLOUT 2>&1
     checkstatus $? $CURLOUT "Failed to send invoice" 
     logfile $OUT
     analizehttpcode $CURLOUT 202
 }
+
+
+# api/online/Invoice/Send
+# $1 - < result of the InitToken file, sessiontoken.json
+# $2 - < invoice XML
+# $3 - > request invoice/send
+requestinvoicesend() {
+    createinvoicesend $2 $3
+    directrequestinvoicesend $1 $3
+}
+
 
 # -------------------------------------
 # init
