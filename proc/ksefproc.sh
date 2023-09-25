@@ -80,6 +80,18 @@ checkstatus() {
     logfail "$3"
 }
 
+createinvoicesend() {
+    local -r PATTERN=patterns/invoice.json
+    local -r FILESIZE=`cat $1 | wc -c`
+    local -r BODY=`cat $1 | base64 -w 0`
+    local -r HASH=`sha256sum $1 | cut -d " " -f 1 | base64 -w 0`
+
+    local -r CMD="sed \"s#__HASH__#$HASH#\" $PATTERN"
+    local -r CMD1="sed \"s#__INVOICE__#$BODY#\""
+    eval $CMD | eval $CMD1 | sed "s/9999999999/$FILESIZE/" >$2
+}
+
+
 # -------------------------
 # actions
 # -------------------------
@@ -156,12 +168,13 @@ requestinvoicesend() {
     log "Sending invoice"
     local -r SESSIONTOKEN=`getsessiontoken $1`
     [[ ! -z "$SESSIONTOKEN" ]] || logfail "Cannot extract session token"
-    local -r PATTERN=patterns/invoice.json
-    local -r BODY=`cat $2 | base64 -w 0`
-    local -r HASH=`echo -n $BODY | openssl sha256 | base64 -w 0`
-    local -r CMD="sed \"s#__HASH__#$HASH#\" $PATTERN"
-    local -r CMD1="sed \"s#__INVOICE__#$BODY#\""
-    eval $CMD | eval $CMD1 >3
+    createinvoicesend $2 $3
+    OUT=work/invoicestatus.json
+    # Important: PUT
+    curl -X PUT $PREFIXURL/api/online/Invoice/Send -v  -H "Content-Type: application/json" -H "accept: application/json" -H "SessionToken: $SESSIONTOKEN" -d@$3 -o $OUT >$CURLOUT 2>&1
+    checkstatus $? $CURLOUT "Failed to send invoice" 
+    logfile $OUT
+    analizehttpcode $CURLOUT 202
 }
 
 # -------------------------------------
@@ -179,7 +192,7 @@ recognizeenv() {
 init () {
     touchlogfile
     usetemp
-    required_listofcommands "openssl base64 jq curl sha245sum"
+    required_listofcommands "openssl base64 jq curl sha256sum"
     recognizeenv
 }
 

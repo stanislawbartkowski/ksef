@@ -4,7 +4,8 @@
             "algorithm": "SHA-256",
             "encoding": "Base64",
             "value": "__HASH__"
-        }
+        },
+        "fileSize": 9999999999
     },
     "invoicePayload": {
         "type": "plain",
