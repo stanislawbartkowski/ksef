@@ -74,6 +74,10 @@ getprocessingcode() {
     echo `jq -r .processingCode $1`
 }
 
+getinvoicereference() {
+    echo `jq -r .elementReferenceNumber $1`
+}
+
 checkstatus() {
     [ $1 -eq 0 ] && return
     logfile $2
@@ -88,14 +92,13 @@ createinvoicesend() {
     local -r PATTERN=patterns/invoice.json
     local -r FILESIZE=`cat $1 | wc -c`
     local -r BODY=`cat $1 | base64 -w 0`
-    local -r HASH=`md5sum $1 | cut -d " " -f 1 | base64 -w 0`
-    #local -r HASH=`sha256sum $1 | cut -d " " -f 1 | base64 -w 0`
+    #local -r HASH=`md5sum $1 | cut -d " " -f 1 | base64 -w 0`
+    local -r HASH=`cat $1 | openssl sha256 -binary | base64 -w 0`
 
     local -r CMD="sed \"s#__HASH__#$HASH#\" $PATTERN"
     local -r CMD1="sed \"s#__INVOICE__#$BODY#\""
     eval $CMD | eval $CMD1 | sed "s/9999999999/$FILESIZE/" >$2
 }
-
 
 # -------------------------
 # actions
@@ -188,6 +191,21 @@ directrequestinvoicesend() {
 requestinvoicesend() {
     createinvoicesend $2 $3
     directrequestinvoicesend $1 $3
+}
+
+# /api/online/Invoice/Status//{InvoiceElementReferenceNumber}
+# $1 - < result of the InitToken file, sessiontoken.json
+# $2 - < invoice reference number
+# $3 - > response
+requestreferencestatus() {
+    log "Checking invoice reference status $2"
+    local -r SESSIONTOKEN=`getsessiontoken $1`
+    [[ ! -z "$SESSIONTOKEN" ]] || logfail "Cannot extract session token"    
+    curl $PREFIXURL/api/online/Invoice/Status/$2 -v -H "SessionToken: $SESSIONTOKEN" -o $3  >$CURLOUT 2>&1
+    checkstatus $? $CURLOUT "Failed to verify invoice reference status" 
+    logfile $3
+    logfile $CURLOUT
+    analizehttpcode $CURLOUT 202
 }
 
 
