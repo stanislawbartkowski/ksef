@@ -194,6 +194,7 @@ requestinvoicesend() {
 }
 
 # /api/online/Invoice/Status//{InvoiceElementReferenceNumber}
+# (do not use)
 # $1 - < result of the InitToken file, sessiontoken.json
 # $2 - < invoice reference number
 # $3 - > response
@@ -208,6 +209,48 @@ requestreferencestatus() {
     analizehttpcode $CURLOUT 202
 }
 
+# /online/Invoice/Get/{KSeFReferenceNumber}
+# $1 < sessiontoken.json
+# $2 < ksief invoice reference number
+# $3 - > response
+requestinvoiceget() {
+    log "Get invoice using ksef reference number $2"
+    local -r SESSIONTOKEN=`getsessiontoken $1`
+    [[ ! -z "$SESSIONTOKEN" ]] || logfail "Cannot extract session token"    
+    curl $PREFIXURL/api/online/Invoice/Get/$2 -v -H "SessionToken: $SESSIONTOKEN" -o $3  >$CURLOUT 2>&1
+    checkstatus $? $CURLOUT "Failed to get invoice by reference number" 
+    logfile $3
+    logfile $CURLOUT
+    analizehttpcode $CURLOUT 200
+}
+
+# /online/Query/Invoice/Sync
+# $1 < sessiontoken.json
+# $2 < queryjson
+# $3 - > response
+requestinvoicesync() {
+    log "Running Query/Invoice/Sync"
+    local -r SESSIONTOKEN=`getsessiontoken $1`
+    [[ ! -z "$SESSIONTOKEN" ]] || logfail "Cannot run query"    
+    curl "$PREFIXURL/api/online/Query/Invoice/Sync/?PageSize=10&PageOffset=0" -H "Content-Type: application/vnd.v2+json" -H "SessionToken: $SESSIONTOKEN" -d @$2 -o $3  >$CURLOUT 2>&1
+    logfile $3
+    logfile $CURLOUT
+    analizehttpcode $CURLOUT 200
+}
+
+# /online/Query/Invoice/Async/Init:
+# $1 < sessiontoken.json
+# $2 < queryjson
+# $3 - > response
+requestinvoiceasyncinit() {
+    log "Running Query/Invoice/Sync"
+    local -r SESSIONTOKEN=`getsessiontoken $1`
+    [[ ! -z "$SESSIONTOKEN" ]] || logfail "Cannot run query"    
+    curl "$PREFIXURL/api/online/Query/Invoice/AsyncInit" -v -H "Content-Type: application/vnd.v2+json" -H "SessionToken: $SESSIONTOKEN" -d @$2 -o $3  >$CURLOUT 2>&1
+    logfile $3
+    logfile $CURLOUT
+    analizehttpcode $CURLOUT 202
+}
 
 # -------------------------------------
 # init
