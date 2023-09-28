@@ -1,8 +1,9 @@
 # ------------------------------------
 # different funcs related to KSeF
 # ------------------------------------
+# 2023/09/24 - first commit
 
-CURLOUT=curl.out
+CURLOUT=`crtemp`
 
 buildauthorizationchallengejson() {
     local -r IN=patterns/authorisationchallenge.json
@@ -193,7 +194,7 @@ requestinvoicesend() {
     directrequestinvoicesend $1 $3
 }
 
-# /api/online/Invoice/Status//{InvoiceElementReferenceNumber}
+
 # (do not use)
 # $1 - < result of the InitToken file, sessiontoken.json
 # $2 - < invoice reference number
@@ -206,7 +207,7 @@ requestreferencestatus() {
     checkstatus $? $CURLOUT "Failed to verify invoice reference status" 
     logfile $3
     logfile $CURLOUT
-    analizehttpcode $CURLOUT 202
+    analizehttpcode $CURLOUT 200
 }
 
 # /online/Invoice/Get/{KSeFReferenceNumber}
