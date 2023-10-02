@@ -34,7 +34,7 @@ function journallognocomment() {
 # ------------------
 
 buildauthorizationchallengejson() {
-    local -r IN=patterns/authorisationchallenge.json
+    local -r IN=$KSEFPROCDIR/patterns/authorisationchallenge.json
     sed s"/__NIP__/$NIP/" $IN 
 }
 
@@ -44,7 +44,7 @@ createatuhorizedtoken() {
     # convert TIMES to epoch miliseconds
     local -r MSECS=`date -d $TIMES +%s%3N 2>>$LOGFILE`
     [[ ! -z "$MSECS" ]] || logfail "Failed while calculating mili epoch from challenge date"
-    local -r PUBKEY="ksefkeys/$ENV/publicKey.pem"
+    local -r PUBKEY="$KSEFPROCDIR/ksefkeys/$ENV/publicKey.pem"
     # very important: echo without -n is adding extra lf at the end which messes up the result
     #                 also  -w 0 parameters to base64, without that the string is broken into lines using lfs
     echo -n "$TOKEN|$MSECS" | openssl pkeyutl -encrypt -pubin -inkey $PUBKEY 2>>$LOGFILE | base64 -w 0
@@ -55,7 +55,7 @@ buildinittokenxml() {
     local -r ATOKEN=`createatuhorizedtoken $2`
     [[ ! -z "$ATOKEN" ]] || logfail "Failed while creating authorization token with openssl"
 
-    local -r IN=patterns/inittoken.xml
+    local -r IN=$KSEFPROCDIR/patterns/inittoken.xml
     # base64 can contain / but does not produce #
     # sed to replace TOKEN should be executed as eval because of spaces problem
     local -r CMD="sed \"s#__TOKEN__#$ATOKEN#\" $IN"
@@ -104,7 +104,7 @@ getinvoicereference() {
 # $1 - < invoice XML
 # $2 - > invoice/send json
 createinvoicesend() {
-    local -r PATTERN=patterns/invoice.json
+    local -r PATTERN=$KSEFPROCDIR/patterns/invoice.json
     local -r FILESIZE=`cat $1 | wc -c`
     local -r BODY=`cat $1 | base64 -w 0`
 
@@ -131,7 +131,6 @@ analizehttpcode() {
         local -r END=`getdate`
         local -r MESS="Obtained HTTP code $HTTP  Expected HTTP code $EXPECTED"
         journallog "$3" "$4" "$END" $ERROR "$MESS"
-        echo "xxxxxx $5 xxxx"
         [ ! -z "$5" ] && logfile $5
         logfail "$MESS"
     fi
