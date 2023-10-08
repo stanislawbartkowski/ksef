@@ -5,7 +5,8 @@
 
 OK="OK"
 ERROR="ERROR"
-
+#CURLPARS="--no-progress-meter -v"
+CURLPARS="--no-progress-meter -v"
 # ----------------
 # journal
 # ----------------
@@ -178,7 +179,7 @@ requestchallenge() {
     local -r BEG=`getdate`
     log "Obtaining authorization challenge"
     local -r OP="Session/AuthorisationChallenge"
-    curl $PREFIXURL/api/online/Session/AuthorisationChallenge -d @$TEMP -v -H "Content-Type: application/json" -o $1 >$CURLOUT 2>&1
+    curl $PREFIXURL/api/online/Session/AuthorisationChallenge -d @$TEMP $CURLPARS -H "Content-Type: application/json" -o $1 >$CURLOUT 2>&1
     verifyresult $? $CURLOUT 201 "Failed to obtain authorization challenge" "$OP" "$BEG" $1
 }
 
@@ -189,7 +190,7 @@ requestinittoken() {
     log "Obtaining init token"
     local -r BEG=`getdate`
     local -r OP="Session/InitToken"
-    curl $PREFIXURL/api/online/Session/InitToken -v  -H "Content-Type: application/octet-stream" -H "accept: application/json" -d@$1 -o $2 >$CURLOUT 2>&1
+    curl $PREFIXURL/api/online/Session/InitToken $CURLPARS  -H "Content-Type: application/octet-stream" -H "accept: application/json" -d@$1 -o $2 >$CURLOUT 2>&1
     verifyresult $? $CURLOUT 201 "Failed to obtain init token" "$OP" "$BEG" $2
 }
 
@@ -202,7 +203,7 @@ requestsessionstatus() {
     local -r OP="Session/Status"
     local -r SESSIONTOKEN=`getsessiontoken $1`
     [[ ! -z "$SESSIONTOKEN" ]] || logfail "Cannot extract session token"    
-    curl $PREFIXURL/api/online/Session/Status -v -H "SessionToken: $SESSIONTOKEN" -o $2  >$CURLOUT 2>&1
+    curl $PREFIXURL/api/online/Session/Status $CURLPARS -H "SessionToken: $SESSIONTOKEN" -o $2  >$CURLOUT 2>&1
     checkstatus $? $CURLOUT "Failed to verify session status" "$OP" "$BEG"
     local -r END=`getdate`
     logfile $2
@@ -237,7 +238,7 @@ requestsessionterminate() {
     local -r SESSIONTOKEN=`getsessiontoken $1`
     [[ ! -z "$SESSIONTOKEN" ]] || logfail "Cannot extract session token"
     local -r TEMP=`crtemp`
-    curl $PREFIXURL/api/online/Session/Terminate -v -H "SessionToken: $SESSIONTOKEN" -o $TEMP  >$CURLOUT 2>&1
+    curl $PREFIXURL/api/online/Session/Terminate $CURLPARS -H "SessionToken: $SESSIONTOKEN" -o $TEMP  >$CURLOUT 2>&1
     verifyresult $? $CURLOUT 200 "Failed to terminate session" "$OP" "$BEG" $TEMP
 }
 
@@ -253,7 +254,7 @@ directrequestinvoicesend() {
     local -r OUT=$3
     [[ ! -z "$SESSIONTOKEN" ]] || logfail "Cannot extract session token"
     # Important: PUT
-    curl -X PUT $PREFIXURL/api/online/Invoice/Send -v  -H "Content-Type: application/json" -H "accept: application/json" -H "SessionToken: $SESSIONTOKEN" -d@$2 -o $OUT >$CURLOUT 2>&1
+    curl -X PUT $PREFIXURL/api/online/Invoice/Send $CURLPARS -H "Content-Type: application/json" -H "accept: application/json" -H "SessionToken: $SESSIONTOKEN" -d@$2 -o $OUT >$CURLOUT 2>&1
     verifyresult $? $CURLOUT 202 "Failed to send invoice" "$OP" "$BEG" $OUT
 }
 
@@ -278,7 +279,7 @@ requestreferencestatus() {
     local -r BEG=`getdate`
     local -r SESSIONTOKEN=`getsessiontoken $1`
     [[ ! -z "$SESSIONTOKEN" ]] || logfail "Cannot extract session token"    
-    curl $PREFIXURL/api/online/Invoice/Status/$2 -v -H "SessionToken: $SESSIONTOKEN" -o $3  >$CURLOUT 2>&1
+    curl $PREFIXURL/api/online/Invoice/Status/$2 $CURLPARS -H "SessionToken: $SESSIONTOKEN" -o $3  >$CURLOUT 2>&1
     verifyresult $? $CURLOUT 200 "Failed to verify invoice reference status" "$OP" "$BEG" $3
 }
 
@@ -290,7 +291,7 @@ requestinvoiceget() {
     log "Get invoice using ksef reference number $2"
     local -r SESSIONTOKEN=`getsessiontoken $1`
     [[ ! -z "$SESSIONTOKEN" ]] || logfail "Cannot extract session token"    
-    curl $PREFIXURL/api/online/Invoice/Get/$2 -v -H "SessionToken: $SESSIONTOKEN" -o $3  >$CURLOUT 2>&1
+    curl $PREFIXURL/api/online/Invoice/Get/$2 $CURLPARS -H "SessionToken: $SESSIONTOKEN" -o $3  >$CURLOUT 2>&1
     checkstatus $? $CURLOUT "Failed to get invoice by reference number" 
     logfile $3
     logfile $CURLOUT
@@ -305,7 +306,7 @@ requestinvoicesync() {
     log "Running Query/Invoice/Sync"
     local -r SESSIONTOKEN=`getsessiontoken $1`
     [[ ! -z "$SESSIONTOKEN" ]] || logfail "Cannot run query"    
-    curl "$PREFIXURL/api/online/Query/Invoice/Sync/?PageSize=10&PageOffset=0" -H "Content-Type: application/vnd.v2+json" -H "SessionToken: $SESSIONTOKEN" -d @$2 -o $3  >$CURLOUT 2>&1
+    curl "$PREFIXURL/api/online/Query/Invoice/Sync/?PageSize=10&PageOffset=0" -H "Content-Type: application/vnd.v2+json" -H "SessionToken: $SESSIONTOKEN" $CURLPARS -d @$2 -o $3  >$CURLOUT 2>&1
     logfile $3
     logfile $CURLOUT
     analizehttpcode $CURLOUT 200
@@ -319,7 +320,7 @@ requestinvoiceasyncinit() {
     log "Running Query/Invoice/Sync"
     local -r SESSIONTOKEN=`getsessiontoken $1`
     [[ ! -z "$SESSIONTOKEN" ]] || logfail "Cannot run query"    
-    curl "$PREFIXURL/api/online/Query/Invoice/AsyncInit" -v -H "Content-Type: application/vnd.v2+json" -H "SessionToken: $SESSIONTOKEN" -d @$2 -o $3  >$CURLOUT 2>&1
+    curl "$PREFIXURL/api/online/Query/Invoice/AsyncInit" $CURLPARS -H "Content-Type: application/vnd.v2+json" -H "SessionToken: $SESSIONTOKEN" -d @$2 -o $3  >$CURLOUT 2>&1
     logfile $3
     logfile $CURLOUT
     analizehttpcode $CURLOUT 202
@@ -346,7 +347,8 @@ requestinvoicesendandreference() {
         sleep 5
         requestreferencestatus $1 $REFERENCENUMBER $3
         local PCODE=`getprocessingcode $3`
-        [ $PCODE -eq 200 ] && return 0
+        [ $PCODE -eq 200 ] && return 0:
+        [ $PCODE -eq 430 ] && return 0
         [ $PCODE -ne 310 ] && break
         log "Invoice still preprocessing, wait 5 sec and retry"
     done
@@ -373,6 +375,7 @@ init () {
     required_listofcommands "openssl base64 jq curl sha256sum uuidgen xmllint"
     recognizeenv
     export CURLOUT=`crtemp`
+    #export CURLOUT=work/c.out
 }
 
 init
