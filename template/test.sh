@@ -6,6 +6,7 @@ export REPFILE=$TEMPDIR/report.txt
 . proc/commonproc.sh
 . proc/ksefproc.sh
 
+NIP="5328617307"
 
 test() {
   TIMES=2023-09-22T21:27:52.300Z
@@ -54,18 +55,12 @@ REFERENCESTATUS=work/referencestatus.json
 
 initsession() {
   requestchallenge $RECHALLENGE
-  createinitxmlfromchallenge $RECHALLENGE >$INITTOKEN
+  createinitxmlfromchallenge $NIP $RECHALLENGE >$INITTOKEN
   requestinittoken $INITTOKEN $SESSIONTOKEN
 }
 
 terminatesession() {
-  requestsessionterminate $SESSIONTOKEN 
-    
-}
-
-sendinvoice() {
-  local -r I=$1
-  requestinvoicesend $SESSIONTOKEN $I $REQUESTINVOICE $INVOICESTATUS
+  requestsessionterminate $SESSIONTOKEN    
 }
 
 getksefnumber() {
@@ -74,9 +69,12 @@ getksefnumber() {
   requestreferencestatus $SESSIONTOKEN $REFERENCENUMBER $REFERENCESTATUS
 }
 
-#if requestsessionstatus $SESSIONTOKEN $SESSIONSTATUS; then echo "Sesja aktywna"; else echo "Sesja wygasła"; fi
+#TOKEN=`gettokenfornip $NIP`
+#echo $TOKEN
 
-QUERY=patterns/initquery.json
+# if requestsessionstatus $SESSIONTOKEN $SESSIONSTATUS; then echo "Sesja aktywna"; else echo "Sesja wygasła"; fi
+
+#QUERY=patterns/initquery.json
 #requestinvoicesync $SESSIONTOKEN $QUERY $REFERENCESTATUS
 #requestinvoiceasyncinit  $SESSIONTOKEN $QUERY $REFERENCESTATUS
 
@@ -84,8 +82,8 @@ QUERY=patterns/initquery.json
 # sesja, wyślij poprawną fakturę, weź nr ksef i zakończ sesje
 
 #initsession
-#requestinvoicesendandreference $SESSIONTOKEN $INVOICE $REFERENCESTATUS
-#terminatesession
+#requestinvoicesendandreference $SESSIONTOKEN $INVOICE1 $REFERENCESTATUS
+terminatesession
 
 # --- scenariusz nr 2, wysłaenie niepoprawej faktury
 # sesja, wyślij niepoprawną fakturę

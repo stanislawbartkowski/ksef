@@ -34,14 +34,15 @@ function journallognocomment() {
 # helpers
 # ------------------
 
-buildauthorizationchallengejson() {
+function buildauthorizationchallengejson() {
     local -r IN=$KSEFPROCDIR/patterns/authorisationchallenge.json
     sed s"/__NIP__/$NIP/" $IN 
 }
 
-createatuhorizedtoken() {
+function createatuhorizedtoken() {
     # assuming TIMES does not contain spaces
-    local -r TIMES=$1
+    local -r TOKEN=$1
+    local -r TIMES=$2
     # convert TIMES to epoch miliseconds
     local -r MSECS=`date -d $TIMES +%s%3N 2>>$LOGFILE`
     [[ ! -z "$MSECS" ]] || logfail "Failed while calculating mili epoch from challenge date"
@@ -51,9 +52,10 @@ createatuhorizedtoken() {
     echo -n "$TOKEN|$MSECS" | openssl pkeyutl -encrypt -pubin -inkey $PUBKEY 2>>$LOGFILE | base64 -w 0
 }
 
-buildinittokenxml() {
-    local -r AUTHCHALLENGE=$1
-    local -r ATOKEN=`createatuhorizedtoken $2`
+function buildinittokenxml() {
+    local -r TOKEN=$1
+    local -r AUTHCHALLENGE=$2
+    local -r ATOKEN=`createatuhorizedtoken $TOKEN $3`
     [[ ! -z "$ATOKEN" ]] || logfail "Failed while creating authorization token with openssl"
 
     local -r IN=$KSEFPROCDIR/patterns/inittoken.xml
@@ -64,39 +66,46 @@ buildinittokenxml() {
     [ $? -eq 0 ] || logfail "Failed while building token with sed"
 }
 
-gettimestampfromchallenge() {
+function gettimestampfromchallenge() {
     echo `jq -r ".timestamp" $1`
 }
 
-getchallengefromchallenge() {
+function getchallengefromchallenge() {
     echo `jq -r ".challenge" $1`
 }
 
-getsessiontoken() {
+function getsessiontoken() {
     echo `jq -r ".sessionToken.token" $1`
 }
 
-
-createinitxmlfromchallenge() {
-    local -r TIMESTAMP=`gettimestampfromchallenge $1`
-    local -r CHALLENGE=`getchallengefromchallenge $1`
-    buildinittokenxml $CHALLENGE $TIMESTAMP
+function gettokenfornip() {
+    echo `yq -r ".tokens.NIP$1" $TOKENSTORE`
 }
 
-gethttpcode() {
+
+function createinitxmlfromchallenge() {
+    local -r NIP=$1
+    local -r TOKEN=`gettokenfornip $NIP`
+    [ "$TOKEN" == "null" ] && logfail "Cannot get token for nip $NIP"
+    local -r TIMESTAMP=`gettimestampfromchallenge $2`
+    local -r CHALLENGE=`getchallengefromchallenge $2`
+    buildinittokenxml $TOKEN $CHALLENGE $TIMESTAMP
+}
+
+function gethttpcode() {
     local -r HTTP=`grep "HTTP/1.1 " $1 | sed "s/.* \([0-9]*\) .*/\1/"`
     echo $HTTP
 }
 
-getstatusexceptioncode() {
+function getstatusexceptioncode() {
     echo `jq -r .exception.exceptionDetailList[0].exceptionCode $1`
 }
 
-getprocessingcode() {
+function getprocessingcode() {
     echo `jq -r .processingCode $1`
 }
 
-getinvoicereference() {
+function getinvoicereference() {
     echo `jq -r .elementReferenceNumber $1`
 }
 
@@ -104,7 +113,7 @@ getinvoicereference() {
 # create payload for invoice/send
 # $1 - < invoice XML
 # $2 - > invoice/send json
-createinvoicesend() {
+function createinvoicesend() {
     local -r PATTERN=$KSEFPROCDIR/patterns/invoice.json
     local -r FILESIZE=`cat $1 | wc -c`
     local -r BODY=`cat $1 | base64 -w 0`
@@ -124,7 +133,7 @@ createinvoicesend() {
 # $3 - < OP
 # $4 - < BEG
 # $5 - < (optional) additional file to log
-analizehttpcode() {
+function analizehttpcode() {
     local -r HTTP=`gethttpcode $1`
     local -r EXPECTED=$2
     logfile $1
@@ -142,7 +151,7 @@ analizehttpcode() {
 # $3 - < Fail message
 # $4 - < OP
 # $5 - < BEG
-checkstatus() {
+function checkstatus() {
     if [ $1 -ne 0 ]; then
         local -r END=`getdate`
         journallog "$4" "$5" "$END" $ERROR "$3"
@@ -159,7 +168,7 @@ checkstatus() {
 # $6 - < BEG
 # $7 - < (optional) additional file to log
 
-verifyresult() {
+function verifyresult() {
     checkstatus $1 $2 "$4" "$5" "$6"
     analizehttpcode $2 $3 "$5" "$6" $7
     local -r END=`getdate`
@@ -173,7 +182,7 @@ verifyresult() {
 
 # /api/online/Session/AuthorisationChallenge
 # $1 - result
-requestchallenge() {
+function requestchallenge() {
     local -r TEMP=`crtemp`
     buildauthorizationchallengejson >$TEMP
     local -r BEG=`getdate`
@@ -186,7 +195,7 @@ requestchallenge() {
 # /api/online/Session/InitToken 
 # $1 - inittoken.json request file
 # $2 - result 
-requestinittoken() {
+function requestinittoken() {
     log "Obtaining init token"
     local -r BEG=`getdate`
     local -r OP="Session/InitToken"
@@ -197,7 +206,7 @@ requestinittoken() {
 # /api/online/Session/Status
 # $1 - result of the InitToken file, sessiontoken.json
 # $2 - result file
-requestsessionstatus() {
+function requestsessionstatus() {
     log "Checking session status"
     local -r BEG=`getdate`
     local -r OP="Session/Status"
@@ -231,7 +240,7 @@ requestsessionstatus() {
 
 # /api/online/Session/Terminate
 # $1 - result of the InitToken file, sessiontoken.json
-requestsessionterminate() {
+function requestsessionterminate() {
     log "Terminating session"
     local -r OP="Session/Terminate"
     local -r BEG=`getdate`
@@ -246,7 +255,7 @@ requestsessionterminate() {
 # $1 - < result of the InitToken file, sessiontoken.json
 # $2 - > request invoice/send 
 # $3 - > invoice status
-directrequestinvoicesend() {
+function directrequestinvoicesend() {
     log "Sending invoice"
     local -r OP="Invoice/Send"
     local -r BEG=`getdate`
@@ -264,7 +273,7 @@ directrequestinvoicesend() {
 # $2 - < invoice XML
 # $3 - > request invoice/send
 # $4 - > invoice status
-requestinvoicesend() {
+function requestinvoicesend() {
     createinvoicesend $2 $3
     directrequestinvoicesend $1 $3 $4
 }
@@ -273,7 +282,7 @@ requestinvoicesend() {
 # $1 - < result of the InitToken file, sessiontoken.json
 # $2 - < invoice reference number
 # $3 - > response
-requestreferencestatus() {
+function requestreferencestatus() {
     log "Checking invoice reference status $2"
     local -r OP="Invoice/Status"
     local -r BEG=`getdate`
@@ -287,7 +296,7 @@ requestreferencestatus() {
 # $1 < sessiontoken.json
 # $2 < ksief invoice reference number
 # $3 - > response
-requestinvoiceget() {
+function requestinvoiceget() {
     log "Get invoice using ksef reference number $2"
     local -r SESSIONTOKEN=`getsessiontoken $1`
     [[ ! -z "$SESSIONTOKEN" ]] || logfail "Cannot extract session token"    
@@ -302,7 +311,7 @@ requestinvoiceget() {
 # $1 < sessiontoken.json
 # $2 < queryjson
 # $3 - > response
-requestinvoicesync() {
+function requestinvoicesync() {
     log "Running Query/Invoice/Sync"
     local -r SESSIONTOKEN=`getsessiontoken $1`
     [[ ! -z "$SESSIONTOKEN" ]] || logfail "Cannot run query"    
@@ -316,7 +325,7 @@ requestinvoicesync() {
 # $1 < sessiontoken.json
 # $2 < queryjson
 # $3 > response
-requestinvoiceasyncinit() {
+function requestinvoiceasyncinit() {
     log "Running Query/Invoice/Sync"
     local -r SESSIONTOKEN=`getsessiontoken $1`
     [[ ! -z "$SESSIONTOKEN" ]] || logfail "Cannot run query"    
@@ -335,7 +344,7 @@ requestinvoiceasyncinit() {
 # $2 < invoice
 # $3 > reference status
 
-requestinvoicesendandreference() {
+function requestinvoicesendandreference() {
     local -r TEMP=`crtemp`
     local -r ITEMP=`crtemp`
     requestinvoicesend $1 $2 $TEMP $ITEMP
@@ -361,7 +370,7 @@ requestinvoicesendandreference() {
 # init
 # -------------------------------------
 
-recognizeenv() {
+function recognizeenv() {
     case $ENV in
       test) PREFIXURL='https://ksef-test.mf.gov.pl';;
       *) logfail "$ENV environment not recognized";;
@@ -369,13 +378,16 @@ recognizeenv() {
 
 }
 
-init () {
+function init() {
     usetemp
     touchlogfile
-    required_listofcommands "openssl base64 jq curl sha256sum uuidgen xmllint"
+    required_listofcommands "openssl base64 jq curl sha256sum uuidgen xmllint yq"
     recognizeenv
     export CURLOUT=`crtemp`
     #export CURLOUT=work/c.out
+    required_listofvars TOKENSTORE ENV
+    existfile $TOKENSTORE
+
 }
 
 init

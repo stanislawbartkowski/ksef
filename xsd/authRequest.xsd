@@ -7,8 +7,7 @@
 	xmlns:online.types="http://ksef.mf.gov.pl/schema/gtw/svc/online/types/2021/10/01/0001"
 	targetNamespace="http://ksef.mf.gov.pl/schema/gtw/svc/online/auth/request/2021/10/01/0001"
 	elementFormDefault="qualified" attributeFormDefault="unqualified"
-	version="1.0" xml:lang="PL"
->
+	version="1.0" xml:lang="PL">
 	<xs:import namespace="http://ksef.mf.gov.pl/schema/gtw/svc/types/2021/10/01/0001" schemaLocation="gtwTypes.xsd"/>
 	<xs:import namespace="http://ksef.mf.gov.pl/schema/gtw/svc/online/types/2021/10/01/0001" schemaLocation="onlineTypes.xsd"/>
 
