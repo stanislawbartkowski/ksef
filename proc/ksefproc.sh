@@ -35,6 +35,7 @@ function journallognocomment() {
 # ------------------
 
 function buildauthorizationchallengejson() {
+    local -r NIP=$1
     local -r IN=$KSEFPROCDIR/patterns/authorisationchallenge.json
     sed s"/__NIP__/$NIP/" $IN 
 }
@@ -43,9 +44,10 @@ function createatuhorizedtoken() {
     # assuming TIMES does not contain spaces
     local -r TOKEN=$1
     local -r TIMES=$2
+    lognoecho "TIMES=$TIMES"
     # convert TIMES to epoch miliseconds
     local -r MSECS=`date -d $TIMES +%s%3N 2>>$LOGFILE`
-    [[ ! -z "$MSECS" ]] || logfail "Failed while calculating mili epoch from challenge date"
+    [[ ! -z "$MSECS" ]] || logfailnoecho "Failed while calculating mili epoch from challenge date"
     local -r PUBKEY="$KSEFPROCDIR/ksefkeys/$ENV/publicKey.pem"
     # very important: echo without -n is adding extra lf at the end which messes up the result
     #                 also  -w 0 parameters to base64, without that the string is broken into lines using lfs
@@ -57,7 +59,6 @@ function buildinittokenxml() {
     local -r AUTHCHALLENGE=$2
     local -r ATOKEN=`createatuhorizedtoken $TOKEN $3`
     [[ ! -z "$ATOKEN" ]] || logfail "Failed while creating authorization token with openssl"
-
     local -r IN=$KSEFPROCDIR/patterns/inittoken.xml
     # base64 can contain / but does not produce #
     # sed to replace TOKEN should be executed as eval because of spaces problem
@@ -82,10 +83,10 @@ function gettokenfornip() {
     echo `yq -r ".tokens.NIP$1" $TOKENSTORE`
 }
 
-
+ś
 function createinitxmlfromchallenge() {
     local -r NIP=$1
-    local -r TOKEN=`gettokenfornip $NIP`
+    local -r TOKEN=`gettokenfornip $NIP`    
     [ "$TOKEN" == "null" ] && logfail "Cannot get token for nip $NIP"
     local -r TIMESTAMP=`gettimestampfromchallenge $2`
     local -r CHALLENGE=`getchallengefromchallenge $2`
@@ -181,24 +182,30 @@ function verifyresult() {
 # -------------------------
 
 # /api/online/Session/AuthorisationChallenge
-# $1 - result
+# $1 - < NIP
+# $2 - > result
 function requestchallenge() {
+    local -r NIP=$1
+    local -r ROUT=$2
     local -r TEMP=`crtemp`
-    buildauthorizationchallengejson >$TEMP
+    buildauthorizationchallengejson $NIP >$TEMP
+    logfile $TEMP
     local -r BEG=`getdate`
     log "Obtaining authorization challenge"
     local -r OP="Session/AuthorisationChallenge"
-    curl $PREFIXURL/api/online/Session/AuthorisationChallenge -d @$TEMP $CURLPARS -H "Content-Type: application/json" -o $1 >$CURLOUT 2>&1
-    verifyresult $? $CURLOUT 201 "Failed to obtain authorization challenge" "$OP" "$BEG" $1
+    curl $PREFIXURL/api/online/Session/AuthorisationChallenge -d @$TEMP $CURLPARS -H "Content-Type: application/json" -o $ROUT >$CURLOUT 2>&1
+    verifyresult $? $CURLOUT 201 "Failed to obtain authorization challenge" "$OP" "$BEG" $ROUT
 }
 
 # /api/online/Session/InitToken 
-# $1 - inittoken.json request file
-# $2 - result 
+# $1 - < inittoken.json request file
+# $2 - > result 
 function requestinittoken() {
     log "Obtaining init token"
     local -r BEG=`getdate`
     local -r OP="Session/InitToken"
+    echo $1
+    logfile $1
     curl $PREFIXURL/api/online/Session/InitToken $CURLPARS  -H "Content-Type: application/octet-stream" -H "accept: application/json" -d@$1 -o $2 >$CURLOUT 2>&1
     verifyresult $? $CURLOUT 201 "Failed to obtain init token" "$OP" "$BEG" $2
 }

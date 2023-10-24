@@ -5,6 +5,7 @@
 # 2021/12/01 - COLDEL added, logfile
 # 2022/01/20 - onthelist, checkuser
 # 2023/01/21 - colon in getdate
+# 2023/10/24 - lognoecho
 # ----------------------------------
 
 #set -x
@@ -37,10 +38,23 @@ logfile() {
   cat $1
 }
 
-log() {
+lognoecho() {
   [ -n "$LOGFILE" ] && echo $1 >>$LOGFILE
+}
+
+log() {
+  lognoecho "$1"
   echo "$1"
 }
+
+logfailnoecho() {
+  lognoecho "$1"
+  lognoecho "Exit immediately"
+  # echo empty string 
+  echo ""
+  exit 1
+}
+
 
 logfail() {
   log "$1"
