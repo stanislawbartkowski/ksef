@@ -83,7 +83,6 @@ function gettokenfornip() {
     echo `yq -r ".tokens.NIP$1" $TOKENSTORE`
 }
 
-ś
 function createinitxmlfromchallenge() {
     local -r NIP=$1
     local -r TOKEN=`gettokenfornip $NIP`    
