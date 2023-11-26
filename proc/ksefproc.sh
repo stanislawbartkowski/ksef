@@ -47,6 +47,7 @@ function createatuhorizedtoken() {
     lognoecho "TIMES=$TIMES"
     # convert TIMES to epoch miliseconds
     local -r MSECS=`date -d $TIMES +%s%3N 2>>$LOGFILE`
+    local -r ENV=`getksefenv`
     [[ ! -z "$MSECS" ]] || logfailnoecho "Failed while calculating mili epoch from challenge date"
     local -r PUBKEY="$KSEFPROCDIR/ksefkeys/$ENV/publicKey.pem"
     # very important: echo without -n is adding extra lf at the end which messes up the result
@@ -82,6 +83,12 @@ function getsessiontoken() {
 function gettokenfornip() {
     echo `yq -r ".tokens.NIP$1" $TOKENSTORE`
 }
+
+function getksefenv() {
+    local -r ENV=`yq -r ".env" /home/perseus/perseus/PerseusWM/startwm/config/kseftokens.yaml`
+    if [ "$ENV" = "null" ] ; then echo "test"; else echo $ENV;
+    fi
+}    
 
 function createinitxmlfromchallenge() {
     local -r NIP=$1
@@ -377,11 +384,13 @@ function requestinvoicesendandreference() {
 # -------------------------------------
 
 function recognizeenv() {
+    local -r ENV=`getksefenv`
     case $ENV in
       test) PREFIXURL='https://ksef-test.mf.gov.pl';;
+      demo) PREFIXURL='https://ksef-demo.mf.gov.pl';;
+      prod) PREFIXURL='https://ksef.mf.gov.pl';;
       *) logfail "$ENV environment not recognized";;
     esac
-
 }
 
 function init() {
