@@ -85,7 +85,7 @@ function gettokenfornip() {
 }
 
 function getksefenv() {
-    local -r ENV=`yq -r ".env" /home/perseus/perseus/PerseusWM/startwm/config/kseftokens.yaml`
+    local -r ENV=`yq -r ".env" $TOKENSTORE`
     if [ "$ENV" = "null" ] ; then echo "test"; else echo $ENV;
     fi
 }    
