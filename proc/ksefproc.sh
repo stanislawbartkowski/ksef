@@ -2,6 +2,8 @@
 # different funcs related to KSeF
 # ------------------------------------
 # 2023/09/24 - first commit
+# 2023/11/25 - usuwanie faktury z bufora
+# 2023/11/30 - czytanie faktur 
 
 OK="OK"
 ERROR="ERROR"
@@ -225,27 +227,35 @@ function requestsessionstatus() {
     local -r OP="Session/Status"
     local -r SESSIONTOKEN=`getsessiontoken $1`
     [[ ! -z "$SESSIONTOKEN" ]] || logfail "Cannot extract session token"    
-    curl $PREFIXURL/api/online/Session/Status $CURLPARS -H "SessionToken: $SESSIONTOKEN" -o $2  >$CURLOUT 2>&1
-    checkstatus $? $CURLOUT "Failed to verify session status" "$OP" "$BEG"
     local -r END=`getdate`
-    logfile $2
-    logfile $CURLOUT
-    local -r HTTPCODE=`gethttpcode $CURLOUT`
-    case $HTTPCODE in
-    200) 
-      local -r PROCESSINGCODE=`getprocessingcode $2`
-      [[ ! -z "$PROCESSINGCODE" ]] || logfail "Cannot extract processing code" 
-      [ "$PROCESSINGCODE" == "315" ] && return 0
-      [ "$PROCESSINGCODE" == "200" ] && return 1
-      local -r MESS="Unrecognized processing code $PROCESSINGCODE  Expected 315 or 200"
-      journallog "$OP" "$BEG" "$END" $ERROR "$MESS"
-      logfail "$MESS"
-      ;;
-    400) 
-        local -r ECODE=`getstatusexceptioncode $2`
-        [ "$ECODE" == "21170" ] && return 1
-        ;;
-    esac
+    for i in {1..3} 
+    do
+        curl $PREFIXURL/api/online/Session/Status $CURLPARS -H "SessionToken: $SESSIONTOKEN" -o $2  >$CURLOUT 2>&1
+        checkstatus $? $CURLOUT "Failed to verify session status" "$OP" "$BEG"
+        logfile $2
+        logfile $CURLOUT
+        local HTTPCODE=`gethttpcode $CURLOUT`
+        case $HTTPCODE in
+        200) 
+            local PROCESSINGCODE=`getprocessingcode $2`
+            [[ ! -z "$PROCESSINGCODE" ]] || logfail "Cannot extract processing code" 
+            [ "$PROCESSINGCODE" == "315" ] && return 0
+            [ "$PROCESSINGCODE" == "200" ] && return 1
+            if  [ "$PROCESSINGCODE" == "310" ]; then
+               log "Code 310, wait 5 sec and try again"
+               sleep 5
+               continue;
+            fi
+            local -r MESS="Unrecognized processing code $PROCESSINGCODE  Expected 315 or 200"
+            journallog "$OP" "$BEG" "$END" $ERROR "$MESS"
+            logfail "$MESS"
+            ;;
+        400) 
+            local -r ECODE=`getstatusexceptioncode $2`
+            [ "$ECODE" == "21170" ] && return 1
+            ;;
+        esac
+    done
     local -r MESS="Obtained HTTP code $HTTPCODE, expected 200 or 400"
     journallog "$OP" "$BEG" "$END" $ERROR "$MESS"
     logfail "$MESS"
@@ -328,7 +338,7 @@ function requestinvoicesync() {
     log "Running Query/Invoice/Sync"
     local -r SESSIONTOKEN=`getsessiontoken $1`
     [[ ! -z "$SESSIONTOKEN" ]] || logfail "Cannot run query"    
-    curl "$PREFIXURL/api/online/Query/Invoice/Sync/?PageSize=10&PageOffset=0" -H "Content-Type: application/vnd.v2+json" -H "SessionToken: $SESSIONTOKEN" $CURLPARS -d @$2 -o $3  >$CURLOUT 2>&1
+    curl "$PREFIXURL/api/online/Query/Invoice/Sync?PageSize=100&PageOffset=0" $CURLPARS -H "Content-Type: application/vnd.v2+json" -H "SessionToken: $SESSIONTOKEN" -d @$2 -o $3  >$CURLOUT 2>&1
     logfile $3
     logfile $CURLOUT
     analizehttpcode $CURLOUT 200
@@ -339,10 +349,10 @@ function requestinvoicesync() {
 # $2 < queryjson
 # $3 > response
 function requestinvoiceasyncinit() {
-    log "Running Query/Invoice/Sync"
+    log "Running Query/Invoice/Async/Init"
     local -r SESSIONTOKEN=`getsessiontoken $1`
     [[ ! -z "$SESSIONTOKEN" ]] || logfail "Cannot run query"    
-    curl "$PREFIXURL/api/online/Query/Invoice/AsyncInit" $CURLPARS -H "Content-Type: application/vnd.v2+json" -H "SessionToken: $SESSIONTOKEN" -d @$2 -o $3  >$CURLOUT 2>&1
+    curl $PREFIXURL/api/online/Query/Invoice/Async/Init $CURLPARS -H "Content-Type: application/vnd.v2+json" -H "SessionToken: $SESSIONTOKEN" -d @$2 -o $3  >$CURLOUT 2>&1
     logfile $3
     logfile $CURLOUT
     analizehttpcode $CURLOUT 202
