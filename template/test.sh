@@ -52,9 +52,13 @@ INVOICE=example/Faktura_KSeF.xml
 INVOICE1=example/faktura.xml
 REFERENCESTATUS=work/referencestatus.json
 
+QUERYPATTERN=patterns/initquery.json
+#QUERYPATTERN=patterns/initq.json
+QUERYOUTPUT=work/queryoutput.json
+
 
 initsession() {
-  requestchallenge $RECHALLENGE
+  requestchallenge $NIP $RECHALLENGE
   createinitxmlfromchallenge $NIP $RECHALLENGE >$INITTOKEN
   requestinittoken $INITTOKEN $SESSIONTOKEN
 }
@@ -72,7 +76,7 @@ getksefnumber() {
 #TOKEN=`gettokenfornip $NIP`
 #echo $TOKEN
 
-# if requestsessionstatus $SESSIONTOKEN $SESSIONSTATUS; then echo "Sesja aktywna"; else echo "Sesja wygasła"; fi
+#if requestsessionstatus $SESSIONTOKEN $SESSIONSTATUS; then echo "Sesja aktywna"; else echo "Sesja wygasła"; fi
 
 #QUERY=patterns/initquery.json
 #requestinvoicesync $SESSIONTOKEN $QUERY $REFERENCESTATUS
@@ -81,9 +85,9 @@ getksefnumber() {
 # --- scenariusz nr 1, wysłanie faktury
 # sesja, wyślij poprawną fakturę, weź nr ksef i zakończ sesje
 
-#initsession
+# initsession
 #requestinvoicesendandreference $SESSIONTOKEN $INVOICE1 $REFERENCESTATUS
-terminatesession
+#terminatesession
 
 # --- scenariusz nr 2, wysłaenie niepoprawej faktury
 # sesja, wyślij niepoprawną fakturę
@@ -92,4 +96,45 @@ terminatesession
 #requestinvoicesendandreference $SESSIONTOKEN $INVOICE1 $REFERENCESTATUS
 #terminatesession
 
+# query
 
+function fun() {
+  initsession
+  if requestsessionstatus $SESSIONTOKEN $SESSIONSTATUS; then echo "Sesja aktywna"; else echo "Sesja wygasła"; fi
+  requestinvoicesync $SESSIONTOKEN $QUERYPATTERN "2023-10-01" "2023-10-11" $QUERYOUTPUT
+  #requestinvoiceasyncinit  $SESSIONTOKEN $QUERYPATTERN $QUERYOUTPUT
+  terminatesession
+}
+
+function count() {
+  n=1
+  while [ $n -le 5 ]
+  do
+    sleep 1
+    echo  "$n"
+    (( n+=2 ))
+  done
+}
+
+RES=work/res.json
+
+function read_invoices() {
+  local -r page_size=10
+  initsession
+  if requestsessionstatus $SESSIONTOKEN $SESSIONSTATUS; then echo "Sesja aktywna"; else echo "Sesja wygasła"; fi
+  echo '{ "res" : [] }' >$RES
+  page_offset=0
+  while true; do
+    requestinvoicesync $SESSIONTOKEN "2023-10-01" "2023-10-11" $page_offset $page_size $QUERYOUTPUT
+    R=`jq -r '.invoiceHeaderList' $QUERYOUTPUT`
+    echo $R
+    if [ "$R" == "[]" ]; then break; fi
+    jq -n --slurpfile doc1  $RES --slurpfile doc2 $QUERYOUTPUT  '{ res: ($doc1[0].res + $doc2[0].invoiceHeaderList) }' >$RES
+    (( page_offset+=$page_size))
+    echo $page_offset
+    if [ $page_offset -gt 30 ]; then break; fi
+  done
+  terminatesession
+}
+
+read_invoices

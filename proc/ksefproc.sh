@@ -332,14 +332,28 @@ function requestinvoiceget() {
 
 # /online/Query/Invoice/Sync
 # $1 < sessiontoken.json
-# $2 < queryjson
-# $3 - > response
+# $2 < date_from
+# $3 < date_to
+# $4 < page offset
+# $5 < page size
+# $6 - > response
 function requestinvoicesync() {
     log "Running Query/Invoice/Sync"
     local -r SESSIONTOKEN=`getsessiontoken $1`
+    local -r DATE_FROM=$2
+    local -r DATE_TO=$3
+    local -r PAGE_OFFSET=$4
+    local -r PAGE_SIZE=$5
+    local -r TEMP=`crtemp`
+    local -r QUERYPATTERN=$KSEFPROCDIR/patterns/initquery.json
     [[ ! -z "$SESSIONTOKEN" ]] || logfail "Cannot run query"    
-    curl "$PREFIXURL/api/online/Query/Invoice/Sync?PageSize=100&PageOffset=0" $CURLPARS -H "Content-Type: application/vnd.v2+json" -H "SessionToken: $SESSIONTOKEN" -d @$2 -o $3  >$CURLOUT 2>&1
-    logfile $3
+    log "Read invoices $DATE_FROM to $DATE_TO"
+    log "Read invoice from $PAGE_OFFSET with size: $PAGE_SIZE"
+    sed "s/__DATE_FROM__/$DATE_FROM/" $QUERYPATTERN | sed "s/__DATE_TO__/$DATE_TO/" >$TEMP
+    logfile $TEMP
+    curl "$PREFIXURL/api/online/Query/Invoice/Sync?PageSize=$PAGE_SIZE&PageOffset=$PAGE_OFFSET" $CURLPARS -H "Content-Type: application/vnd.v2+json" -H "SessionToken: $SESSIONTOKEN" -d @$TEMP -o $6  >$CURLOUT 2>&1
+    checkstatus $? $CURLOUT "Failed to read invoices" 
+    logfile $6
     logfile $CURLOUT
     analizehttpcode $CURLOUT 200
 }

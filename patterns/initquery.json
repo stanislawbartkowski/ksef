@@ -2,7 +2,7 @@
     "queryCriteria": {
         "subjectType": "subject2",
         "type": "incremental",
-        "acquisitionTimestampThresholdFrom": "2023-01-01T12:00:00",
-        "acquisitionTimestampThresholdTo": "2023-11-27T23:00:00"
+        "acquisitionTimestampThresholdFrom": "__DATE_FROM__T12:00:00",
+        "acquisitionTimestampThresholdTo": "__DATE_TO__T23:59:59"
     }
 }
