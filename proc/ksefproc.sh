@@ -4,6 +4,7 @@
 # 2023/09/24 - first commit
 # 2023/11/25 - usuwanie faktury z bufora
 # 2023/11/30 - czytanie faktur 
+# 2023/12/28 - UPO
 
 OK="OK"
 ERROR="ERROR"
@@ -118,6 +119,10 @@ function getinvoicereference() {
     echo `jq -r .elementReferenceNumber $1`
 }
 
+function getsessionreferencenumber() {
+    echo `jq -r .referenceNumber $1`
+}
+
 
 # create payload for invoice/send
 # $1 - < invoice XML
@@ -189,7 +194,7 @@ function verifyresult() {
 # actions
 # -------------------------
 
-# /api/online/Session/AuthorisationChallenge
+# /online/Session/AuthorisationChallenge
 # $1 - < NIP
 # $2 - > result
 function requestchallenge() {
@@ -205,7 +210,7 @@ function requestchallenge() {
     verifyresult $? $CURLOUT 201 "Failed to obtain authorization challenge" "$OP" "$BEG" $ROUT
 }
 
-# /api/online/Session/InitToken 
+# /online/Session/InitToken 
 # $1 - < inittoken.json request file
 # $2 - > result 
 function requestinittoken() {
@@ -218,9 +223,12 @@ function requestinittoken() {
     verifyresult $? $CURLOUT 201 "Failed to obtain init token" "$OP" "$BEG" $2
 }
 
-# /api/online/Session/Status
+# /online/Session/Status
 # $1 - result of the InitToken file, sessiontoken.json
 # $2 - result file
+# Returns
+#  0 - sesja aktywna
+#  1 - sesja nieaktywna
 function requestsessionstatus() {
     log "Checking session status"
     local -r BEG=`getdate`
@@ -228,7 +236,7 @@ function requestsessionstatus() {
     local -r SESSIONTOKEN=`getsessiontoken $1`
     [[ ! -z "$SESSIONTOKEN" ]] || logfail "Cannot extract session token"    
     local -r END=`getdate`
-    for i in {1..3} 
+    for i in {1..7} 
     do
         curl $PREFIXURL/api/online/Session/Status $CURLPARS -H "SessionToken: $SESSIONTOKEN" -o $2  >$CURLOUT 2>&1
         checkstatus $? $CURLOUT "Failed to verify session status" "$OP" "$BEG"
@@ -239,11 +247,17 @@ function requestsessionstatus() {
         200) 
             local PROCESSINGCODE=`getprocessingcode $2`
             [[ ! -z "$PROCESSINGCODE" ]] || logfail "Cannot extract processing code" 
-            [ "$PROCESSINGCODE" == "315" ] && return 0
-            [ "$PROCESSINGCODE" == "200" ] && return 1
+            if [ "$PROCESSINGCODE" == "315" ]; then 
+                journallog "$OP" "$BEG" "$END" $OK "Sesja aktywna (315) po $i próbach"
+                return 0
+            fi
+            if [ "$PROCESSINGCODE" == "200" ]; then 
+                journallog "$OP" "$BEG" "$END" $OK "Sesja nieaktywna (200) "
+               return 1
+            fi
             if  [ "$PROCESSINGCODE" == "310" ]; then
-               log "Code 310, wait 5 sec and try again"
-               sleep 5
+               log "Code 310, wait $i sec and try again"
+               sleep $i
                continue;
             fi
             local -r MESS="Unrecognized processing code $PROCESSINGCODE  Expected 315 or 200"
@@ -252,16 +266,19 @@ function requestsessionstatus() {
             ;;
         400) 
             local -r ECODE=`getstatusexceptioncode $2`
-            [ "$ECODE" == "21170" ] && return 1
+            if [ "$ECODE" == "21170" ]; then 
+               journallog "$OP" "$BEG" "$END" $OK "Sesja nieaktywna (21170) "               
+               return 1
+            fi
             ;;
         esac
     done
-    local -r MESS="Obtained HTTP code $HTTPCODE, expected 200 or 400"
+    local -r MESS="Nie mozna ustalić statusu sesji"
     journallog "$OP" "$BEG" "$END" $ERROR "$MESS"
     logfail "$MESS"
 }
 
-# /api/online/Session/Terminate
+# /online/Session/Terminate
 # $1 - result of the InitToken file, sessiontoken.json
 function requestsessionterminate() {
     log "Terminating session"
@@ -274,7 +291,7 @@ function requestsessionterminate() {
     verifyresult $? $CURLOUT 200 "Failed to terminate session" "$OP" "$BEG" $TEMP
 }
 
-# api/online/Invoice/Send
+# /online/Invoice/Send
 # $1 - < result of the InitToken file, sessiontoken.json
 # $2 - > request invoice/send 
 # $3 - > invoice status
@@ -291,7 +308,7 @@ function directrequestinvoicesend() {
 }
 
 
-# api/online/Invoice/Send
+# /online/Invoice/Send
 # $1 - < result of the InitToken file, sessiontoken.json
 # $2 - < invoice XML
 # $3 - > request invoice/send
@@ -301,7 +318,7 @@ function requestinvoicesend() {
     directrequestinvoicesend $1 $3 $4
 }
 
-
+# api/online/Invoice/Status
 # $1 - < result of the InitToken file, sessiontoken.json
 # $2 - < invoice reference number
 # $3 - > response
@@ -314,6 +331,8 @@ function requestreferencestatus() {
     curl $PREFIXURL/api/online/Invoice/Status/$2 $CURLPARS -H "SessionToken: $SESSIONTOKEN" -o $3  >$CURLOUT 2>&1
     verifyresult $? $CURLOUT 200 "Failed to verify invoice reference status" "$OP" "$BEG" $3
 }
+
+# TODO: remove
 
 # /online/Invoice/Get/{KSeFReferenceNumber}
 # $1 < sessiontoken.json
@@ -367,9 +386,23 @@ function requestinvoiceasyncinit() {
     local -r SESSIONTOKEN=`getsessiontoken $1`
     [[ ! -z "$SESSIONTOKEN" ]] || logfail "Cannot run query"    
     curl $PREFIXURL/api/online/Query/Invoice/Async/Init $CURLPARS -H "Content-Type: application/vnd.v2+json" -H "SessionToken: $SESSIONTOKEN" -d @$2 -o $3  >$CURLOUT 2>&1
+    checkstatus $? $CURLOUT "Failed run AyncInit" 
     logfile $3
     logfile $CURLOUT
     analizehttpcode $CURLOUT 202
+}
+
+# /common/Status
+# $1 < session reference number
+# $2 > status, response
+function requestcommonsessionstatus() {
+    local -r STATUSREFERENCENUMBER=$1
+    local -r OP="common/Status"
+    local -r BEG=`getdate`
+
+    log "Running $OP session reference number: $STATUSREFERENCENUMBER"
+    curl $PREFIXURL/api/common/Status/$STATUSREFERENCENUMBER $CURLPARS -H "Content-Type: application/vnd.v2+json" -o $2  >$CURLOUT 2>&1
+    verifyresult $? $CURLOUT 200 "Failed to get session status" "$OP" "$BEG" $2
 }
 
 # ----------------------------------
@@ -390,13 +423,14 @@ function requestinvoicesendandreference() {
     local -r BEG=`getdate`
     for i in {1..3} 
     do
-        sleep 5
+        sleep $i
         requestreferencestatus $1 $REFERENCENUMBER $3
         local PCODE=`getprocessingcode $3`
-        [ $PCODE -eq 200 ] && return 0:
+        [ $PCODE -eq 336 ] && return 0
+        [ $PCODE -eq 200 ] && return 0
         [ $PCODE -eq 430 ] && return 0
         [ $PCODE -ne 310 ] && break
-        log "Invoice still preprocessing, wait 5 sec and retry"
+        log "Invoice still preprocessing, wait $i sec and retry"
     done
     local -r END=`getdate`
     journallog "$OP" "$BEG" "$END" $ERROR "Cannot extract reference number"
@@ -426,7 +460,6 @@ function init() {
     #export CURLOUT=work/c.out
     required_listofvars TOKENSTORE ENV
     existfile $TOKENSTORE
-
 }
 
 init
