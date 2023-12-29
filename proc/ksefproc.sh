@@ -251,6 +251,10 @@ function requestsessionstatus() {
                 journallog "$OP" "$BEG" "$END" $OK "Sesja aktywna (315) po $i próbach"
                 return 0
             fi
+            if [ "$PROCESSINGCODE" == "100" ]; then 
+                journallog "$OP" "$BEG" "$END" $OK "Sesja rozpoczęra (100) po $i próbach"
+                return 0
+            fi
             if [ "$PROCESSINGCODE" == "200" ]; then 
                 journallog "$OP" "$BEG" "$END" $OK "Sesja nieaktywna (200) "
                return 1
